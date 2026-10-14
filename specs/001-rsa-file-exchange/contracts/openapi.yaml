@@ -1,0 +1,304 @@
+openapi: 3.1.0
+info:
+  title: Cléa Account and Health API
+  version: 2.0.0
+  description: >
+    Account, verification, public-key and health APIs. Private keys, files,
+    plaintext messages, and encrypted message envelopes are not accepted by
+    these HTTP endpoints. Live messages use the STOMP contract in websocket.md.
+servers:
+  - url: http://localhost:8080
+security:
+  - sessionCookie: []
+paths:
+  /api/health:
+    get:
+      operationId: getHealth
+      summary: Check backend process availability
+      security: []
+      responses:
+        "200":
+          description: Backend is running
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    const: UP
+  /api/auth/csrf:
+    get:
+      operationId: getCsrfToken
+      security: []
+      summary: Obtain the CSRF token for same-origin browser requests
+      responses:
+        "200":
+          description: CSRF token and cookie initialized
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [token]
+                properties:
+                  token:
+                    type: string
+  /api/auth/register:
+    post:
+      operationId: register
+      security: []
+      summary: Create an unverified account and send a verification email
+      description: Response does not reveal whether the email is already registered.
+      parameters:
+        - $ref: "#/components/parameters/CsrfHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegistrationRequest"
+      responses:
+        "202":
+          description: Generic accepted response
+        "400":
+          description: Invalid input
+        "403":
+          description: Missing or invalid CSRF token
+        "429":
+          description: Registration rate limit exceeded
+  /api/auth/verify:
+    post:
+      operationId: verifyEmail
+      security: []
+      summary: Consume a single-use email verification token
+      parameters:
+        - $ref: "#/components/parameters/CsrfHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [token]
+              properties:
+                token:
+                  type: string
+                  minLength: 32
+                  maxLength: 256
+      responses:
+        "200":
+          description: Account verified and authenticated session established
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                description: HttpOnly session cookie; Secure in production.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountSession"
+        "400":
+          description: Invalid, expired, or already-used token
+        "403":
+          description: Missing or invalid CSRF token
+  /api/auth/resend-verification:
+    post:
+      operationId: resendVerification
+      security: []
+      summary: Request another verification email without disclosing account state
+      parameters:
+        - $ref: "#/components/parameters/CsrfHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  maxLength: 320
+      responses:
+        "202":
+          description: Generic accepted response for unknown, verified, or pending accounts
+        "403":
+          description: Missing or invalid CSRF token
+  /api/auth/login:
+    post:
+      operationId: login
+      security: []
+      summary: Authenticate a verified account and create a session
+      parameters:
+        - $ref: "#/components/parameters/CsrfHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Authenticated session established
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                description: HttpOnly session cookie; Secure in production.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountSession"
+        "401":
+          description: Invalid credentials or account not verified
+        "403":
+          description: Missing or invalid CSRF token
+  /api/auth/session:
+    get:
+      operationId: getSession
+      summary: Return the current authenticated account
+      responses:
+        "200":
+          description: Current account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountSession"
+        "401":
+          description: No authenticated session
+  /api/auth/logout:
+    post:
+      operationId: logout
+      summary: Invalidate the authenticated session
+      parameters:
+        - $ref: "#/components/parameters/CsrfHeader"
+      responses:
+        "204":
+          description: Session invalidated
+        "403":
+          description: Missing or invalid CSRF token
+  /api/account/public-key:
+    put:
+      operationId: savePublicKey
+      summary: Register or replace the authenticated account's public key
+      parameters:
+        - $ref: "#/components/parameters/CsrfHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [publicKeyPem]
+              properties:
+                publicKeyPem:
+                  type: string
+                  maxLength: 4096
+                  description: RSA-OAEP 3072-bit SPKI PEM; public material only.
+      responses:
+        "204":
+          description: Validated public key saved
+        "400":
+          description: Invalid or unsupported public key
+        "401":
+          description: Authentication required
+        "403":
+          description: Missing or invalid CSRF token
+  /api/contacts:
+    get:
+      operationId: findRecipient
+      summary: Find a verified account by exact email for message addressing
+      parameters:
+        - name: email
+          in: query
+          required: true
+          schema:
+            type: string
+            format: email
+            maxLength: 320
+      responses:
+        "200":
+          description: Recipient's public-key and live-availability metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Recipient"
+        "401":
+          description: Authentication required
+        "404":
+          description: No eligible recipient found
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: JSESSIONID
+  parameters:
+    CsrfHeader:
+      name: X-CSRF-TOKEN
+      in: header
+      required: true
+      schema:
+        type: string
+  schemas:
+    RegistrationRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 320
+        password:
+          type: string
+          minLength: 12
+          maxLength: 128
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 320
+        password:
+          type: string
+          minLength: 1
+          maxLength: 128
+    AccountSession:
+      type: object
+      additionalProperties: false
+      required: [id, email, hasPublicKey]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        hasPublicKey:
+          type: boolean
+    Recipient:
+      type: object
+      additionalProperties: false
+      required: [id, email, publicKeyPem, online]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        publicKeyPem:
+          type: string
+          maxLength: 4096
+        online:
+          type: boolean

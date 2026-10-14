@@ -1,0 +1,36 @@
+spring:
+  application:
+    name: rsa-file-exchange
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:15432/clea_dev}
+    username: ${SPRING_DATASOURCE_USERNAME:clea_dev}
+    password: ${SPRING_DATASOURCE_PASSWORD:clea_dev_only}
+  flyway:
+    enabled: true
+  mail:
+    host: ${SMTP_HOST:localhost}
+    port: ${SMTP_PORT:1025}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      "[mail.smtp.connectiontimeout]": 5000
+      "[mail.smtp.timeout]": 3000
+      "[mail.smtp.writetimeout]": 5000
+server:
+  port: ${PORT:8080}
+  servlet:
+    session:
+      cookie:
+        http-only: true
+        secure: ${CLEA_COOKIE_SECURE:false}
+        same-site: lax
+clea:
+  app:
+    base-url: ${CLEA_APP_BASE_URL:${RENDER_EXTERNAL_URL:http://localhost:5173}}
+    mail-from: ${CLEA_MAIL_FROM:no-reply@clea.local}
+  mail:
+    resend-api-key: ${CLEA_MAIL_RESEND_API_KEY:}
+  frontend:
+    origins: ${CLEA_FRONTEND_ORIGINS:${RENDER_EXTERNAL_URL:http://localhost:5173,http://127.0.0.1:5173}}
+  messaging:
+    max-frame-bytes: 16384

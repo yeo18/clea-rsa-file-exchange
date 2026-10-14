@@ -1,0 +1,27 @@
+# JavaScript
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Java
+backend/target/
+
+# Local configuration and editor files
+.env
+.env.*
+!.env.example
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+backend/.env
+backend/.env.*
+!.env.example
+.idea/
+.vscode/
+.DS_Store
+
+# Personal exchange artifacts
+*.rsaenc
+*.rsakey
+cle-publique.pem
+cle-privee.pem
